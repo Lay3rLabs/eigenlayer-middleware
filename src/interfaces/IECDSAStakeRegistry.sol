@@ -253,6 +253,26 @@ interface IECDSAStakeRegistry is
     ) external view returns (bool);
 
     /*
+     * @notice Retrieves the latest operator address associated with a signing key.
+     * @param signingKey The signing key to look up.
+     * @return The latest operator address associated with the signing key, or address(0) if none.
+     */
+    function getLatestOperatorForSigningKey(
+        address signingKey
+    ) external view returns (address);
+
+    /*
+     * @notice Retrieves the operator address associated with a signing key at a specific block.
+     * @param signingKey The signing key to look up.
+     * @param blockNumber The block number to query at.
+     * @return The operator address associated with the signing key at the given block, or address(0) if none.
+     */
+    function getOperatorForSigningKeyAtBlock(
+        address signingKey,
+        uint256 blockNumber
+    ) external view returns (address);
+
+    /*
      * @notice Returns the minimum weight required for operator participation.
      * @return The minimum weight threshold.
      */

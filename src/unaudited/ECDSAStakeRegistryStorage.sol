@@ -46,6 +46,9 @@ abstract contract ECDSAStakeRegistryStorage is IECDSAStakeRegistry {
     /// @notice Maps an operator to their registration status
     mapping(address => bool) internal _operatorRegistered;
 
+    /// @notice Maps a signing key to its operator address
+    mapping(address => CheckpointsUpgradeable.History) internal _signingKeyToOperator;
+
     /// @param _delegationManager Connects this registry with the DelegationManager
     constructor(
         IDelegationManager _delegationManager

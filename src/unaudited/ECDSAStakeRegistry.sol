@@ -199,6 +199,21 @@ contract ECDSAStakeRegistry is
     }
 
     /// @inheritdoc IECDSAStakeRegistry
+    function getLatestOperatorForSigningKey(
+        address signingKey
+    ) external view returns (address) {
+        return address(uint160(_signingKeyToOperator[signingKey].latest()));
+    }
+
+    /// @inheritdoc IECDSAStakeRegistry
+    function getOperatorForSigningKeyAtBlock(
+        address signingKey,
+        uint256 blockNumber
+    ) external view returns (address) {
+        return address(uint160(_signingKeyToOperator[signingKey].getAtBlock(blockNumber)));
+    }
+
+    /// @inheritdoc IECDSAStakeRegistry
     function minimumWeight() external view returns (uint256) {
         return _minimumWeight;
     }
@@ -313,6 +328,9 @@ contract ECDSAStakeRegistry is
         emit OperatorDeregistered(operator, address(_serviceManager));
     }
 
+    /// @notice Error thrown when attempting to register with a signing key that's already in use
+    error SigningKeyAlreadyInUse();
+
     /// @dev registers an operator through a provided signature
     /// @param operatorSignature Contains the operator's signature, salt, and expiry
     /// @param signingKey The signing key to add to the operator's history
@@ -323,6 +341,11 @@ contract ECDSAStakeRegistry is
     ) internal virtual {
         if (_operatorRegistered[operator]) {
             revert OperatorAlreadyRegistered();
+        }
+        // Check if the signing key is already in use by another operator
+        address existingOperator = address(uint160(_signingKeyToOperator[signingKey].latest()));
+        if (existingOperator != address(0)) {
+            revert SigningKeyAlreadyInUse();
         }
         _totalOperators++;
         _operatorRegistered[operator] = true;
@@ -341,6 +364,12 @@ contract ECDSAStakeRegistry is
         if (newSigningKey == oldSigningKey) {
             return;
         }
+        // Remove the old signing key from the mapping if it exists
+        if (oldSigningKey != address(0)) {
+            _signingKeyToOperator[oldSigningKey].push(uint160(0));
+        }
+        // Update the new signing key to point to this operator
+        _signingKeyToOperator[newSigningKey].push(uint160(operator));
         _operatorSigningKeyHistory[operator].push(uint160(newSigningKey));
         emit SigningKeyUpdate(operator, block.number, newSigningKey, oldSigningKey);
     }

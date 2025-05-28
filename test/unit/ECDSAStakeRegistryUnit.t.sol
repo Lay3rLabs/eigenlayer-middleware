@@ -836,6 +836,232 @@ contract ECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
         registry.isValidSignature(dataHash, abi.encode(operators, signatures, referenceBlock));
     }
 
+    function test_GetOperatorForSigningKey_AfterRegistration() public {
+        // Create a new operator and signing key
+        address operator = operator3;
+        address signingKey = signer;
+
+        ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
+
+        // Register operator with the signing key
+        vm.prank(operator);
+        registry.registerOperatorWithSignature(operatorSignature, signingKey);
+
+        // Query the operator by signing key
+        address retrievedOperator = registry.getLatestOperatorForSigningKey(signingKey);
+
+        // Verify that the retrieved operator matches the registered operator
+        assertEq(
+            retrievedOperator,
+            operator,
+            "The retrieved operator does not match the registered operator"
+        );
+    }
+
+    function test_GetOperatorForSigningKey_NonRegisteredKey() public {
+        // Use a signing key that has never been registered
+        address nonRegisteredKey = address(vm.addr(999));
+
+        // Query the operator by the non-registered signing key
+        address retrievedOperator = registry.getLatestOperatorForSigningKey(nonRegisteredKey);
+
+        // Verify that the retrieved operator is the zero address
+        assertEq(
+            retrievedOperator,
+            address(0),
+            "The retrieved operator should be the zero address for a non-registered signing key"
+        );
+    }
+
+    function test_GetOperatorForSigningKey_AfterUpdate() public {
+        // Create a new operator and signing keys
+        address operator = operator3;
+        address initialSigningKey = signer;
+        address updatedSigningKey = address(vm.addr(signerPk + 1));
+
+        ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
+
+        // Register operator with the initial signing key
+        vm.prank(operator);
+        registry.registerOperatorWithSignature(operatorSignature, initialSigningKey);
+
+        // Update the operator's signing key
+        vm.prank(operator);
+        registry.updateOperatorSigningKey(updatedSigningKey);
+
+        // Query the operator by the updated signing key
+        address retrievedOperator = registry.getLatestOperatorForSigningKey(updatedSigningKey);
+
+        // Verify that the retrieved operator matches the registered operator
+        assertEq(
+            retrievedOperator,
+            operator,
+            "The retrieved operator does not match the registered operator after key update"
+        );
+    }
+
+    function test_GetOperatorForSigningKey_OldKeyAfterUpdate() public {
+        // Create a new operator and signing keys
+        address operator = operator3;
+        address initialSigningKey = signer;
+        address updatedSigningKey = address(vm.addr(signerPk + 1));
+
+        ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
+
+        // Register operator with the initial signing key
+        vm.prank(operator);
+        registry.registerOperatorWithSignature(operatorSignature, initialSigningKey);
+        
+        // Save the current block number
+        uint256 initialBlock = block.number;
+        vm.roll(block.number + 10);
+
+        // Update the operator's signing key
+        vm.prank(operator);
+        registry.updateOperatorSigningKey(updatedSigningKey);
+
+        // Query the operator by the old signing key (should return zero address for latest)
+        address retrievedOperator = registry.getLatestOperatorForSigningKey(initialSigningKey);
+
+        // Verify that the retrieved operator is the zero address
+        assertEq(
+            retrievedOperator,
+            address(0),
+            "The retrieved operator should be the zero address for an old signing key"
+        );
+    }
+
+    function test_GetOperatorForSigningKeyAtBlock_OldKey() public {
+        // Create a new operator and signing keys
+        address operator = operator3;
+        address initialSigningKey = signer;
+        address updatedSigningKey = address(vm.addr(signerPk + 1));
+
+        ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
+
+        // Register operator with the initial signing key
+        vm.prank(operator);
+        registry.registerOperatorWithSignature(operatorSignature, initialSigningKey);
+        
+        // Save the current block number
+        uint256 initialBlock = block.number;
+        vm.roll(block.number + 10);
+
+        // Update the operator's signing key
+        vm.prank(operator);
+        registry.updateOperatorSigningKey(updatedSigningKey);
+
+        // Query the operator by the old signing key at the old block
+        address retrievedOperator = registry.getOperatorForSigningKeyAtBlock(initialSigningKey, initialBlock);
+
+        // Verify that the retrieved operator matches the registered operator
+        assertEq(
+            retrievedOperator,
+            operator,
+            "The retrieved operator should match the original operator when querying at the old block"
+        );
+    }
+
+    function test_RevertsWhen_DuplicateSigningKey() public {
+        // Create a new registry instance for this test to avoid conflicts with the setup
+        IStrategy mockStrategy = IStrategy(address(0x1234));
+        IECDSAStakeRegistryTypes.Quorum memory quorum = IECDSAStakeRegistryTypes.Quorum({
+            strategies: new IECDSAStakeRegistryTypes.StrategyParams[](1)
+        });
+        quorum.strategies[0] = 
+            IECDSAStakeRegistryTypes.StrategyParams({strategy: mockStrategy, multiplier: 10000});
+        ECDSAStakeRegistry newRegistry = new ECDSAStakeRegistry(IDelegationManager(address(mockDelegationManager)));
+        newRegistry.initialize(address(mockServiceManager), 100, quorum);
+        
+        // Create two different operators
+        address operator1Address = address(0xABCD);
+        address operator2Address = address(0xDCBA);
+        // Same signing key for both operators
+        address sharedSigningKey = address(0x1111);
+
+        ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
+
+        // Register first operator with the signing key
+        vm.prank(operator1Address);
+        newRegistry.registerOperatorWithSignature(operatorSignature, sharedSigningKey);
+
+        // Try to register second operator with the same signing key
+        // This should now revert with SigningKeyAlreadyInUse
+        vm.prank(operator2Address);
+        vm.expectRevert(abi.encodeWithSignature("SigningKeyAlreadyInUse()"));
+        newRegistry.registerOperatorWithSignature(operatorSignature, sharedSigningKey);
+    }
+    
+    function test_ReuseSigningKeyAfterUpdate() public {
+        // Create a new registry instance for this test to avoid conflicts with the setup
+        IStrategy mockStrategy = IStrategy(address(0x1234));
+        IECDSAStakeRegistryTypes.Quorum memory quorum = IECDSAStakeRegistryTypes.Quorum({
+            strategies: new IECDSAStakeRegistryTypes.StrategyParams[](1)
+        });
+        quorum.strategies[0] = 
+            IECDSAStakeRegistryTypes.StrategyParams({strategy: mockStrategy, multiplier: 10000});
+        ECDSAStakeRegistry newRegistry = new ECDSAStakeRegistry(IDelegationManager(address(mockDelegationManager)));
+        newRegistry.initialize(address(mockServiceManager), 100, quorum);
+        
+        // Create two different operators
+        address operator1Address = address(0xABCD);
+        address operator2Address = address(0xDCBA);
+        
+        // Two different signing keys
+        address signingKey1 = address(0x1111);
+        address signingKey2 = address(0x2222);
+
+        ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
+
+        // Step 1: Register operator1 with signingKey1
+        vm.prank(operator1Address);
+        newRegistry.registerOperatorWithSignature(operatorSignature, signingKey1);
+        
+        // Verify operator1 is associated with signingKey1
+        assertEq(
+            newRegistry.getLatestOperatorForSigningKey(signingKey1),
+            operator1Address,
+            "operator1 should be associated with signingKey1"
+        );
+        
+        // Step 2: Update operator1's signing key to signingKey2
+        vm.prank(operator1Address);
+        newRegistry.updateOperatorSigningKey(signingKey2);
+        
+        // Verify operator1 is now associated with signingKey2
+        assertEq(
+            newRegistry.getLatestOperatorForSigningKey(signingKey2),
+            operator1Address,
+            "operator1 should be associated with signingKey2 after update"
+        );
+        
+        // Verify signingKey1 is no longer associated with any operator
+        assertEq(
+            newRegistry.getLatestOperatorForSigningKey(signingKey1),
+            address(0),
+            "signingKey1 should not be associated with any operator after update"
+        );
+        
+        // Step 3: Register operator2 with signingKey1 (which should be allowed now)
+        vm.prank(operator2Address);
+        newRegistry.registerOperatorWithSignature(operatorSignature, signingKey1);
+        
+        // Step 4: Verify the final associations
+        // signingKey2 should point to operator1
+        assertEq(
+            newRegistry.getLatestOperatorForSigningKey(signingKey2),
+            operator1Address,
+            "signingKey2 should point to operator1"
+        );
+        
+        // signingKey1 should now point to operator2
+        assertEq(
+            newRegistry.getLatestOperatorForSigningKey(signingKey1),
+            operator2Address,
+            "signingKey1 should point to operator2 after reuse"
+        );
+    }
+
     function _sort(
         address[] memory operators,
         bytes[] memory signatures
