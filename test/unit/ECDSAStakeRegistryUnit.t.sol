@@ -626,23 +626,27 @@ contract ECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
 
         ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
         address[] memory operators = new address[](30);
+        address[] memory signers = new address[](30);
         bytes[] memory signatures = new bytes[](30);
+        uint256 signer;
         uint8 v;
         bytes32 r;
         bytes32 s;
         for (uint256 i = 1; i < operators.length + 1; i++) {
+            signer = i + 1000;
             operators[i - 1] = address(vm.addr(i));
+            signers[i - 1] = address(vm.addr(signer));
             vm.prank(operators[i - 1]);
-            registry.registerOperatorWithSignature(operatorSignature, operators[i - 1]);
-            (v, r, s) = vm.sign(i, msgHash);
+            registry.registerOperatorWithSignature(operatorSignature, signers[i - 1]);
+            (v, r, s) = vm.sign(signer, msgHash);
             signatures[i - 1] = abi.encodePacked(r, s, v);
         }
-        (operators, signatures) = _sort(operators, signatures);
+        (signers, signatures) = _sort(signers, signatures);
         registry.updateOperators(operators);
         vm.roll(block.number + 1);
         vm.resumeGasMetering();
 
-        registry.isValidSignature(msgHash, abi.encode(operators, signatures, block.number - 1));
+        registry.isValidSignature(msgHash, abi.encode(signers, signatures, block.number - 1));
 
         emit log_named_uint("Gas consumed", before - gasleft());
     }
@@ -709,16 +713,16 @@ contract ECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
 
         // Prepare data for signature
         bytes32 dataHash = keccak256("data");
-        address[] memory operators = new address[](1);
-        operators[0] = operator;
+        address[] memory signers = new address[](1);
+        signers[0] = signer; // Use the signing key directly
         bytes[] memory signatures = new bytes[](1);
 
         // Generate signature using the signing key
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, dataHash);
         signatures[0] = abi.encodePacked(r, s, v);
 
-        // Check signatures using the registered signing key
-        registry.isValidSignature(dataHash, abi.encode(operators, signatures, block.number - 1));
+        // Check signatures using the signing key directly
+        registry.isValidSignature(dataHash, abi.encode(signers, signatures, block.number - 1));
     }
 
     function test_WhenUsingSigningKey_CheckSignaturesAtBlock() public {
@@ -735,16 +739,16 @@ contract ECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
 
         // Prepare data for signature with initial signing key
         bytes32 dataHash = keccak256("data");
-        address[] memory operators = new address[](1);
-        operators[0] = operator;
+        address[] memory signers = new address[](1);
+        signers[0] = initialSigningKey; // Use the signing key directly
         bytes[] memory signatures = new bytes[](1);
 
         // Generate signature using the initial signing key
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, dataHash);
         signatures[0] = abi.encodePacked(r, s, v);
 
-        // Check signatures using the initial registered signing key
-        registry.isValidSignature(dataHash, abi.encode(operators, signatures, block.number - 1));
+        // Check signatures using the initial signing key directly
+        registry.isValidSignature(dataHash, abi.encode(signers, signatures, block.number - 1));
 
         // Increase block number
         vm.roll(block.number + 10);
@@ -758,8 +762,10 @@ contract ECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
         (v, r, s) = vm.sign(signerPk + 1, dataHash);
         signatures[0] = abi.encodePacked(r, s, v);
 
-        // Check signatures using the updated registered signing key
-        registry.isValidSignature(dataHash, abi.encode(operators, signatures, block.number - 1));
+        // Use the updated signing key for verification
+        signers[0] = updatedSigningKey;
+        // Check signatures using the updated signing key directly
+        registry.isValidSignature(dataHash, abi.encode(signers, signatures, block.number - 1));
     }
 
     function test_WhenUsingPriorSigningKey_CheckSignaturesAtBlock() public {
@@ -776,23 +782,24 @@ contract ECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
 
         // Prepare data for signature with initial signing key
         bytes32 dataHash = keccak256("data");
-        address[] memory operators = new address[](1);
-        operators[0] = operator;
+        address[] memory signers = new address[](1);
+        signers[0] = initialSigningKey; // Use the signing key directly
         bytes[] memory signatures = new bytes[](1);
 
         // Generate signature using the initial signing key
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, dataHash);
         signatures[0] = abi.encodePacked(r, s, v);
 
-        // Increase block number
+        // Increase block number and store the block we want to reference
+        uint32 referenceBlock = uint32(block.number);
         vm.roll(block.number + 10);
 
         // Update operator's signing key
         vm.prank(operator);
         registry.updateOperatorSigningKey(updatedSigningKey);
 
-        // Check signatures using the initial registered signing key at the previous block
-        registry.isValidSignature(dataHash, abi.encode(operators, signatures, block.number - 10));
+        // Check signatures using the initial signing key at the previous block
+        registry.isValidSignature(dataHash, abi.encode(signers, signatures, referenceBlock));
     }
 
     function test_RevertsWhen_SigningCurrentBlock_IsValidSignature() public {
@@ -803,13 +810,13 @@ contract ECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, dataHash);
         bytes memory signature = abi.encodePacked(r, s, v);
-        address[] memory operators = new address[](1);
-        operators[0] = operator;
+        address[] memory signers = new address[](1);
+        signers[0] = signingKey; // Use the signing key directly
         bytes[] memory signatures = new bytes[](1);
         signatures[0] = signature;
 
         vm.expectRevert(abi.encodeWithSignature("InvalidReferenceBlock()"));
-        registry.isValidSignature(dataHash, abi.encode(operators, signatures, currentBlock));
+        registry.isValidSignature(dataHash, abi.encode(signers, signatures, currentBlock));
     }
 
     function test_RevertsWhen_SigningKeyNotValidAtBlock_IsValidSignature() public {
@@ -827,13 +834,13 @@ contract ECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(invalidSignerPk, dataHash);
         bytes memory signature = abi.encodePacked(r, s, v);
-        address[] memory operators = new address[](1);
-        operators[0] = operator;
+        address[] memory signers = new address[](1);
+        signers[0] = updatedSigningKey; // Use the signing key directly
         bytes[] memory signatures = new bytes[](1);
         signatures[0] = signature;
 
-        vm.expectRevert(abi.encodeWithSignature("InvalidSignature()"));
-        registry.isValidSignature(dataHash, abi.encode(operators, signatures, referenceBlock));
+        vm.expectRevert(abi.encodeWithSignature("SignerNotRegistered()"));
+        registry.isValidSignature(dataHash, abi.encode(signers, signatures, referenceBlock));
     }
 
     function test_GetOperatorForSigningKey_AfterRegistration() public {

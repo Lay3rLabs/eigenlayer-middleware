@@ -40,6 +40,8 @@ interface IECDSAStakeRegistryErrors {
     error OperatorAlreadyRegistered();
     /// @notice Thrown when de-registering or updating the stake for an unregisted operator.
     error OperatorNotRegistered();
+    /// @notice Thrown when validating a signature by a signer which is not associated with any operator for that block.
+    error SignerNotRegistered();
 }
 
 interface IECDSAStakeRegistryTypes {
