@@ -469,9 +469,6 @@ contract ECDSAStakeRegistry is
             if (operator == address(0)) {
                 revert SignerNotRegistered();
             }
-            if (!_operatorRegistered[operator]) {
-                revert OperatorNotRegistered();
-            }
             
             _validateSortedSigners(lastSigner, currentSigner);
             _validateSignature(currentSigner, digest, signatures[i]);
@@ -536,7 +533,7 @@ contract ECDSAStakeRegistry is
         return address(uint160(_operatorSigningKeyHistory[operator].getAtBlock(referenceBlock)));
     }
 
-    /// @notice Retrieves the operator weight for a signer, either at the last checkpoint or a specified block.
+    /// @notice Retrieves the latest signing key for a given operator.
     /// @param operator The operator to query their signing key history for
     /// @return The latest signing key for this operator.
     function _getLatestOperatorSigningKey(
@@ -546,9 +543,9 @@ contract ECDSAStakeRegistry is
     }
 
 
-    /// @notice Retrieves the operator weight for a signer, either at the last checkpoint or a specified block.
+    /// @notice Retrieves the operator address for a signer, either at the last checkpoint or a specified block.
     /// @param signingKey The signing key to query their operator history for
-    /// @param referenceBlock The block number to query the operator's weight at, or the maximum uint32 value for the last checkpoint.
+    /// @param referenceBlock The block number to query the operator's address at, or block.number-1 for the last checkpoint.
     /// @return The operator registered for this signing key, or address(0) if none
     function _getOperatorForSigningKey(
         address signingKey,
