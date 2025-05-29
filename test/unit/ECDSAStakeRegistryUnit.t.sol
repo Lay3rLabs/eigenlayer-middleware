@@ -999,6 +999,46 @@ contract ECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
         newRegistry.registerOperatorWithSignature(operatorSignature, sharedSigningKey);
     }
     
+    function test_RevertsWhen_UpdateToDuplicateSigningKey() public {
+        // Create a new registry instance for this test to avoid conflicts with the setup
+        IStrategy mockStrategy = IStrategy(address(0x1234));
+        IECDSAStakeRegistryTypes.Quorum memory quorum = IECDSAStakeRegistryTypes.Quorum({
+            strategies: new IECDSAStakeRegistryTypes.StrategyParams[](1)
+        });
+        quorum.strategies[0] = 
+            IECDSAStakeRegistryTypes.StrategyParams({strategy: mockStrategy, multiplier: 10000});
+        ECDSAStakeRegistry newRegistry = new ECDSAStakeRegistry(IDelegationManager(address(mockDelegationManager)));
+        newRegistry.initialize(address(mockServiceManager), 100, quorum);
+        
+        // Create two different operators with different initial signing keys
+        address operator1Address = address(0xABCD);
+        address operator2Address = address(0xDCBA);
+        address operator1SigningKey = address(0x1111);
+        address operator2SigningKey = address(0x2222);
+        
+        ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
+
+        // Register both operators with different signing keys
+        vm.prank(operator1Address);
+        newRegistry.registerOperatorWithSignature(operatorSignature, operator1SigningKey);
+        
+        vm.prank(operator2Address);
+        newRegistry.registerOperatorWithSignature(operatorSignature, operator2SigningKey);
+        
+        // Try to update operator2's signing key to operator1's signing key
+        // This should revert with SigningKeyAlreadyInUse
+        vm.prank(operator2Address);
+        vm.expectRevert(abi.encodeWithSignature("SigningKeyAlreadyInUse()"));
+        newRegistry.updateOperatorSigningKey(operator1SigningKey);
+        
+        // Verify that operator2's signing key is still the original one
+        assertEq(
+            newRegistry.getLatestOperatorForSigningKey(operator2SigningKey),
+            operator2Address,
+            "Operator 2 should still be registered with the original signing key"
+        );
+    }
+    
     function test_ReuseSigningKeyAfterUpdate() public {
         // Create a new registry instance for this test to avoid conflicts with the setup
         IStrategy mockStrategy = IStrategy(address(0x1234));

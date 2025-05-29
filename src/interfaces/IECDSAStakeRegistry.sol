@@ -42,6 +42,8 @@ interface IECDSAStakeRegistryErrors {
     error OperatorNotRegistered();
     /// @notice Thrown when validating a signature by a signer which is not associated with any operator for that block.
     error SignerNotRegistered();
+    /// @notice Thrown when attempting to update to a signing key that's already in use by another operator.
+    error SigningKeyAlreadyInUse();
 }
 
 interface IECDSAStakeRegistryTypes {

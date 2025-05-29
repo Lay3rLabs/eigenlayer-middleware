@@ -330,9 +330,6 @@ contract ECDSAStakeRegistry is
         emit OperatorDeregistered(operator, address(_serviceManager));
     }
 
-    /// @notice Error thrown when attempting to register with a signing key that's already in use
-    error SigningKeyAlreadyInUse();
-
     /// @dev registers an operator through a provided signature
     /// @param operatorSignature Contains the operator's signature, salt, and expiry
     /// @param signingKey The signing key to add to the operator's history
@@ -366,6 +363,13 @@ contract ECDSAStakeRegistry is
         if (newSigningKey == oldSigningKey) {
             return;
         }
+
+        // Check if the new signing key is already in use by another operator
+        address existingOperator = address(uint160(_signingKeyToOperatorHistory[newSigningKey].latest()));
+        if (existingOperator != address(0) && existingOperator != operator) {
+            revert SigningKeyAlreadyInUse();
+        }
+
         // Remove the old signing key from the mapping if it exists
         if (oldSigningKey != address(0)) {
             _signingKeyToOperatorHistory[oldSigningKey].push(uint160(0));
