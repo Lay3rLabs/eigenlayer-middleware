@@ -199,6 +199,21 @@ contract ECDSAStakeRegistry is
     }
 
     /// @inheritdoc IECDSAStakeRegistry
+    function getLatestOperatorForSigningKey(
+        address signingKey
+    ) external view returns (address) {
+        return address(uint160(_signingKeyToOperatorHistory[signingKey].latest()));
+    }
+
+    /// @inheritdoc IECDSAStakeRegistry
+    function getOperatorForSigningKeyAtBlock(
+        address signingKey,
+        uint256 blockNumber
+    ) external view returns (address) {
+        return address(uint160(_signingKeyToOperatorHistory[signingKey].getAtBlock(blockNumber)));
+    }
+
+    /// @inheritdoc IECDSAStakeRegistry
     function minimumWeight() external view returns (uint256) {
         return _minimumWeight;
     }
@@ -307,6 +322,8 @@ contract ECDSAStakeRegistry is
         }
         _totalOperators--;
         delete _operatorRegistered[operator];
+        address signingKey = _getLatestOperatorSigningKey(operator);
+        _signingKeyToOperatorHistory[signingKey].push(uint160(0));
         int256 delta = _updateOperatorWeight(operator);
         _updateTotalWeight(delta);
         IServiceManager(_serviceManager).deregisterOperatorFromAVS(operator);
@@ -323,6 +340,11 @@ contract ECDSAStakeRegistry is
     ) internal virtual {
         if (_operatorRegistered[operator]) {
             revert OperatorAlreadyRegistered();
+        }
+        // Check if the signing key is already in use by another operator
+        address existingOperator = address(uint160(_signingKeyToOperatorHistory[signingKey].latest()));
+        if (existingOperator != address(0)) {
+            revert SigningKeyAlreadyInUse();
         }
         _totalOperators++;
         _operatorRegistered[operator] = true;
@@ -341,6 +363,19 @@ contract ECDSAStakeRegistry is
         if (newSigningKey == oldSigningKey) {
             return;
         }
+
+        // Check if the new signing key is already in use by another operator
+        address existingOperator = address(uint160(_signingKeyToOperatorHistory[newSigningKey].latest()));
+        if (existingOperator != address(0) && existingOperator != operator) {
+            revert SigningKeyAlreadyInUse();
+        }
+
+        // Remove the old signing key from the mapping if it exists
+        if (oldSigningKey != address(0)) {
+            _signingKeyToOperatorHistory[oldSigningKey].push(uint160(0));
+        }
+        // Update the new signing key to point to this operator
+        _signingKeyToOperatorHistory[newSigningKey].push(uint160(operator));
         _operatorSigningKeyHistory[operator].push(uint160(newSigningKey));
         emit SigningKeyUpdate(operator, block.number, newSigningKey, oldSigningKey);
     }
@@ -415,32 +450,35 @@ contract ECDSAStakeRegistry is
     /**
      * @notice Common logic to verify a batch of ECDSA signatures against a hash, using either last stake weight or at a specific block.
      * @param digest The hash of the data the signers endorsed.
-     * @param operators A collection of addresses that endorsed the data hash.
+     * @param signers A collection of signing key addresses that endorsed the data hash.
      * @param signatures A collection of signatures matching the signers.
      * @param referenceBlock The block number for evaluating stake weight; use max uint32 for latest weight.
      */
     function _checkSignatures(
         bytes32 digest,
-        address[] memory operators,
+        address[] memory signers,
         bytes[] memory signatures,
         uint32 referenceBlock
     ) internal view {
-        uint256 signersLength = operators.length;
-        address currentOperator;
-        address lastOperator;
-        address signer;
+        uint256 signersLength = signers.length;
+        address currentSigner;
+        address lastSigner;
+        address operator;
         uint256 signedWeight;
-
+        
         _validateSignaturesLength(signersLength, signatures.length);
         for (uint256 i; i < signersLength; i++) {
-            currentOperator = operators[i];
-            signer = _getOperatorSigningKey(currentOperator, referenceBlock);
-
-            _validateSortedSigners(lastOperator, currentOperator);
-            _validateSignature(signer, digest, signatures[i]);
-
-            lastOperator = currentOperator;
-            uint256 operatorWeight = _getOperatorWeight(currentOperator, referenceBlock);
+            currentSigner = signers[i];
+            operator = _getOperatorForSigningKey(currentSigner, referenceBlock);
+            if (operator == address(0)) {
+                revert SignerNotRegistered();
+            }
+            
+            _validateSortedSigners(lastSigner, currentSigner);
+            _validateSignature(currentSigner, digest, signatures[i]);
+            
+            lastSigner = currentSigner;
+            uint256 operatorWeight = _getOperatorWeight(operator, referenceBlock);
             signedWeight += operatorWeight;
         }
 
@@ -497,6 +535,30 @@ contract ECDSAStakeRegistry is
             revert InvalidReferenceBlock();
         }
         return address(uint160(_operatorSigningKeyHistory[operator].getAtBlock(referenceBlock)));
+    }
+
+    /// @notice Retrieves the latest signing key for a given operator.
+    /// @param operator The operator to query their signing key history for
+    /// @return The latest signing key for this operator.
+    function _getLatestOperatorSigningKey(
+        address operator
+    ) internal view returns (address) {
+        return address(uint160(_operatorSigningKeyHistory[operator].latest()));
+    }
+
+
+    /// @notice Retrieves the operator address for a signer, either at the last checkpoint or a specified block.
+    /// @param signingKey The signing key to query their operator history for
+    /// @param referenceBlock The block number to query the operator's address at, or block.number-1 for the last checkpoint.
+    /// @return The operator registered for this signing key, or address(0) if none
+    function _getOperatorForSigningKey(
+        address signingKey,
+        uint32 referenceBlock
+    ) internal view returns (address) {
+        if (referenceBlock >= block.number) {
+            revert InvalidReferenceBlock();
+        }
+        return address(uint160(_signingKeyToOperatorHistory[signingKey].getAtBlock(referenceBlock)));
     }
 
     /// @notice Retrieves the operator weight for a signer, either at the last checkpoint or a specified block.

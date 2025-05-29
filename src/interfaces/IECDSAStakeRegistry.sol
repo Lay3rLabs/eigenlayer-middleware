@@ -40,6 +40,10 @@ interface IECDSAStakeRegistryErrors {
     error OperatorAlreadyRegistered();
     /// @notice Thrown when de-registering or updating the stake for an unregisted operator.
     error OperatorNotRegistered();
+    /// @notice Thrown when validating a signature by a signer which is not associated with any operator for that block.
+    error SignerNotRegistered();
+    /// @notice Thrown when attempting to update to a signing key that's already in use by another operator.
+    error SigningKeyAlreadyInUse();
 }
 
 interface IECDSAStakeRegistryTypes {
@@ -219,6 +223,27 @@ interface IECDSAStakeRegistry is
      */
     function getOperatorSigningKeyAtBlock(
         address operator,
+        uint256 blockNumber
+    ) external view returns (address);
+
+
+    /*
+     * @notice Retrieves the latest operator address associated with a signing key.
+     * @param signingKey The address of the signing key.
+     * @return The latest operator address associated with the signing key, or address(0) if none.
+     */
+    function getLatestOperatorForSigningKey(
+        address signingKey
+    ) external view returns (address);
+
+    /*
+     * @notice Retrieves the operator address associated with a signing key at a specific block.
+     * @param signingKey The address of the signing key.
+     * @param blockNumber The block number to query at.
+     * @return The operator address associated with the signing key at the given block, or address(0) if none.
+     */
+    function getOperatorForSigningKeyAtBlock(
+        address signingKey,
         uint256 blockNumber
     ) external view returns (address);
 

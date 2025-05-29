@@ -19,6 +19,10 @@ import {ECDSAStakeRegistryEqualWeight} from
 
 contract EqualWeightECDSARegistry is ECDSAStakeRegistrySetup {
     ECDSAStakeRegistryEqualWeight internal fixedWeightRegistry;
+    
+    // Test signing keys
+    address internal constant SIGNING_KEY_1 = address(0x1001);
+    address internal constant SIGNING_KEY_2 = address(0x1002);
 
     function setUp() public virtual override {
         super.setUp();
@@ -32,12 +36,11 @@ contract EqualWeightECDSARegistry is ECDSAStakeRegistrySetup {
 
         fixedWeightRegistry.permitOperator(operator1);
         fixedWeightRegistry.permitOperator(operator2);
-        address operator = address(0x123);
         ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
         vm.prank(operator1);
-        fixedWeightRegistry.registerOperatorWithSignature(operatorSignature, operator1);
+        fixedWeightRegistry.registerOperatorWithSignature(operatorSignature, SIGNING_KEY_1);
         vm.prank(operator2);
-        fixedWeightRegistry.registerOperatorWithSignature(operatorSignature, operator2);
+        fixedWeightRegistry.registerOperatorWithSignature(operatorSignature, SIGNING_KEY_2);
     }
 
     function test_FixedStakeUpdates() public {
@@ -54,10 +57,9 @@ contract EqualWeightECDSARegistry is ECDSAStakeRegistrySetup {
         assertEq(fixedWeightRegistry.getLastCheckpointTotalWeight(), 1);
 
         vm.roll(block.number + 1);
-        address operator = address(0x123);
         ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
         vm.prank(operator1);
-        fixedWeightRegistry.registerOperatorWithSignature(operatorSignature, operator1);
+        fixedWeightRegistry.registerOperatorWithSignature(operatorSignature, SIGNING_KEY_1);
 
         assertEq(fixedWeightRegistry.getLastCheckpointOperatorWeight(operator1), 1);
         assertEq(fixedWeightRegistry.getLastCheckpointOperatorWeight(operator2), 1);

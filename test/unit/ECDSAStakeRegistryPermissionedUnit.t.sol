@@ -20,6 +20,11 @@ import {ECDSAStakeRegistryPermissioned} from
 
 contract PermissionedECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
     ECDSAStakeRegistryPermissioned internal permissionedRegistry;
+    
+    // Test signing keys
+    address internal constant SIGNING_KEY_1 = address(0x1001);
+    address internal constant SIGNING_KEY_2 = address(0x1002);
+    address internal constant SIGNING_KEY_3 = address(0x1003);
 
     function setUp() public virtual override {
         super.setUp();
@@ -35,9 +40,9 @@ contract PermissionedECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
         permissionedRegistry.permitOperator(operator2);
         ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
         vm.prank(operator1);
-        permissionedRegistry.registerOperatorWithSignature(operatorSignature, operator1);
+        permissionedRegistry.registerOperatorWithSignature(operatorSignature, SIGNING_KEY_1);
         vm.prank(operator2);
-        permissionedRegistry.registerOperatorWithSignature(operatorSignature, operator1);
+        permissionedRegistry.registerOperatorWithSignature(operatorSignature, SIGNING_KEY_2);
     }
 
     function test_RevertsWhen_NotOwner_PermitOperator() public {
@@ -104,16 +109,18 @@ contract PermissionedECDSAStakeRegistryTest is ECDSAStakeRegistrySetup {
         address operator3 = address(0xBEEF);
         permissionedRegistry.permitOperator(operator3);
         ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
+        address signingKey3 = address(0x1003);
         vm.prank(operator3);
-        permissionedRegistry.registerOperatorWithSignature(operatorSignature, operator3);
+        permissionedRegistry.registerOperatorWithSignature(operatorSignature, signingKey3);
     }
 
     function test_DeregisterOperator() public {
         address operator3 = address(0xBEEF);
         permissionedRegistry.permitOperator(operator3);
         ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature;
+        address signingKey3 = address(0x1003);
         vm.prank(operator3);
-        permissionedRegistry.registerOperatorWithSignature(operatorSignature, operator3);
+        permissionedRegistry.registerOperatorWithSignature(operatorSignature, signingKey3);
 
         vm.prank(operator3);
         permissionedRegistry.deregisterOperator();
