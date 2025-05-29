@@ -322,6 +322,8 @@ contract ECDSAStakeRegistry is
         }
         _totalOperators--;
         delete _operatorRegistered[operator];
+        address signingKey = _getLatestOperatorSigningKey(operator);
+        _signingKeyToOperatorHistory[signingKey].push(uint160(0));
         int256 delta = _updateOperatorWeight(operator);
         _updateTotalWeight(delta);
         IServiceManager(_serviceManager).deregisterOperatorFromAVS(operator);
@@ -533,6 +535,16 @@ contract ECDSAStakeRegistry is
         }
         return address(uint160(_operatorSigningKeyHistory[operator].getAtBlock(referenceBlock)));
     }
+
+    /// @notice Retrieves the operator weight for a signer, either at the last checkpoint or a specified block.
+    /// @param operator The operator to query their signing key history for
+    /// @return The latest signing key for this operator.
+    function _getLatestOperatorSigningKey(
+        address operator
+    ) internal view returns (address) {
+        return address(uint160(_operatorSigningKeyHistory[operator].latest()));
+    }
+
 
     /// @notice Retrieves the operator weight for a signer, either at the last checkpoint or a specified block.
     /// @param signingKey The signing key to query their operator history for
