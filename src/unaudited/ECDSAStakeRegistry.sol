@@ -50,7 +50,7 @@ contract ECDSAStakeRegistry is
         address _serviceManager,
         uint256 thresholdWeight,
         IECDSAStakeRegistryTypes.Quorum memory quorum
-    ) external initializer {
+    ) virtual external initializer {
         __ECDSAStakeRegistry_init(_serviceManager, thresholdWeight, quorum);
     }
 
@@ -71,19 +71,19 @@ contract ECDSAStakeRegistry is
     function registerOperatorWithSignature(
         ISignatureUtilsMixinTypes.SignatureWithSaltAndExpiry memory operatorSignature,
         address signingKey
-    ) external {
+    ) virtual external {
         _registerOperatorWithSig(msg.sender, operatorSignature, signingKey);
     }
 
     /// @inheritdoc IECDSAStakeRegistry
-    function deregisterOperator() external {
+    function deregisterOperator() virtual external {
         _deregisterOperator(msg.sender);
     }
 
     /// @inheritdoc IECDSAStakeRegistry
     function updateOperatorSigningKey(
         address newSigningKey
-    ) external {
+    ) virtual external {
         if (!_operatorRegistered[msg.sender]) {
             revert OperatorNotRegistered();
         }
@@ -93,7 +93,7 @@ contract ECDSAStakeRegistry is
     /// @inheritdoc IECDSAStakeRegistry
     function updateOperators(
         address[] memory operators
-    ) external {
+    ) virtual external {
         _updateOperators(operators);
     }
 
@@ -101,7 +101,7 @@ contract ECDSAStakeRegistry is
     function updateQuorumConfig(
         IECDSAStakeRegistryTypes.Quorum memory quorum,
         address[] memory operators
-    ) external onlyOwner {
+    ) virtual external onlyOwner {
         _updateQuorumConfig(quorum);
         _updateOperators(operators);
     }
@@ -110,7 +110,7 @@ contract ECDSAStakeRegistry is
     function updateMinimumWeight(
         uint256 newMinimumWeight,
         address[] memory operators
-    ) external onlyOwner {
+    ) virtual external onlyOwner {
         _updateMinimumWeight(newMinimumWeight);
         _updateOperators(operators);
     }
@@ -118,14 +118,14 @@ contract ECDSAStakeRegistry is
     /// @inheritdoc IECDSAStakeRegistry
     function updateStakeThreshold(
         uint256 thresholdWeight
-    ) external onlyOwner {
+    ) virtual external onlyOwner {
         _updateStakeThreshold(thresholdWeight);
     }
 
     function isValidSignature(
         bytes32 digest,
         bytes memory _signatureData
-    ) external view returns (bytes4) {
+    ) virtual external view returns (bytes4) {
         (address[] memory operators, bytes[] memory signatures, uint32 referenceBlock) =
             abi.decode(_signatureData, (address[], bytes[], uint32));
         _checkSignatures(digest, operators, signatures, referenceBlock);
@@ -221,7 +221,7 @@ contract ECDSAStakeRegistry is
     /// @inheritdoc IECDSAStakeRegistry
     function getOperatorWeight(
         address operator
-    ) public view returns (uint256) {
+    ) public virtual view returns (uint256) {
         StrategyParams[] memory strategyParams = _quorum.strategies;
         uint256 weight;
         IStrategy[] memory strategies = new IStrategy[](strategyParams.length);
@@ -245,7 +245,7 @@ contract ECDSAStakeRegistry is
     function updateOperatorsForQuorum(
         address[][] memory operatorsPerQuorum,
         bytes memory
-    ) external {
+    ) virtual external {
         _updateAllOperators(operatorsPerQuorum[0]);
     }
 
